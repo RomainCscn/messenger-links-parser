@@ -39,6 +39,7 @@ pub struct JsonValue {
 
 #[derive(Deserialize, Debug)]
 pub struct Message {
+  sender_name: String,
   share: Option<Share>,
 }
 
@@ -47,35 +48,55 @@ pub struct Share {
   link: String,
 }
 
-fn search_links_with_filter(messages: Vec<Message>, filter_site: String) -> Vec<String> {
-    let mut links = Vec::new();
+#[derive(Debug, PartialEq)]
+pub struct LinkInfo {
+  sender_name: String,
+  link: String,
+}
+
+fn search_links_with_filter(messages: Vec<Message>, filter_site: String) -> Vec<LinkInfo> {
+    let mut links_info = Vec::new();
     for message in messages {
       if message.share.is_some() {
         let link = message.share.unwrap().link;
         if link.contains(&filter_site) {
-          links.push(link);
+          let link_info = LinkInfo {
+            sender_name: message.sender_name,
+            link: link,
+          };
+          links_info.push(link_info);
         }
       }
     }
-    links
+    links_info
 }
 
-fn search_links_without_filter(messages: Vec<Message>) -> Vec<String>{
-    let mut links = Vec::new();
+fn search_links_without_filter(messages: Vec<Message>) -> Vec<LinkInfo>{
+    let mut links_info = Vec::new();
     for message in messages {
       if message.share.is_some() {
-        links.push(message.share.unwrap().link);
+        let link_info = LinkInfo {
+          sender_name: message.sender_name,
+          link: message.share.unwrap().link,
+        };
+        links_info.push(link_info);
       }
     }
-    links
+    links_info
+}
+
+fn print_links_info(links_info: Vec<LinkInfo>) {
+  for link_info in links_info {
+    println!("{} - link sent by {}", link_info.link, link_info.sender_name);
+  }
 }
 
 fn parse_messages(json_value: JsonValue, site: Option<String>) -> Result<(), Box<dyn Error>> {
     if site.is_some() {
       let filter_site = site.unwrap();
-      search_links_with_filter(json_value.messages, filter_site);
+      print_links_info(search_links_with_filter(json_value.messages, filter_site));
     } else {
-      search_links_without_filter(json_value.messages);
+      print_links_info(search_links_without_filter(json_value.messages));
     }
     Ok(())
 }
@@ -113,17 +134,28 @@ mod tests {
           link: String::from("https://www.youtube.com/watch?v=dazedazed"),
         };
         let message1 = Message {
+          sender_name: String::from("toto"),
           share: Some(share1),
         };
         let message2 = Message {
+          sender_name: String::from("toto"),
           share: None,
         };
         let message3 = Message {
+          sender_name: String::from("toto"),
           share: Some(share2),
+        };
+        let link1 = LinkInfo {
+          sender_name: String::from("toto"),
+          link: String::from("https://www.youtube.com/watch?v=aJUQO9l7k5s"),
+        };
+        let link2 = LinkInfo {
+          sender_name: String::from("toto"),
+          link: String::from("https://www.youtube.com/watch?v=dazedazed"),
         };
 
         assert_eq!(
-            vec![String::from("https://www.youtube.com/watch?v=aJUQO9l7k5s"), String::from("https://www.youtube.com/watch?v=dazedazed")],
+            vec![link1, link2],
             search_links_without_filter(vec![message1, message2, message3])
         );
     }
@@ -137,17 +169,24 @@ mod tests {
           link: String::from("https://www.reddit.com/r/france"),
         };
         let message1 = Message {
+          sender_name: String::from("toto"),
           share: Some(share1),
         };
         let message2 = Message {
+          sender_name: String::from("toto"),
           share: None,
         };
         let message3 = Message {
+          sender_name: String::from("toto"),
           share: Some(share2),
+        };
+        let link1 = LinkInfo {
+          sender_name: String::from("toto"),
+          link: String::from("https://www.reddit.com/r/france"),
         };
 
         assert_eq!(
-            vec![String::from("https://www.reddit.com/r/france")],
+            vec![link1],
             search_links_with_filter(vec![message1, message2, message3], String::from("reddit"))
         );
     }
