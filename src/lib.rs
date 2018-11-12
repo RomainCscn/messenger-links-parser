@@ -37,13 +37,14 @@ pub struct JsonValue {
     messages: Vec<Message>,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Clone)]
 pub struct Message {
   sender_name: String,
+  content: String,
   share: Option<Share>,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Clone)]
 pub struct Share {
   link: String,
 }
@@ -71,15 +72,28 @@ fn search_links_with_filter(messages: Vec<Message>, filter_site: String) -> Vec<
     links_info
 }
 
-fn search_links_without_filter(messages: Vec<Message>) -> Vec<LinkInfo>{
+fn create_link_info(sender_name: String, link: String) -> LinkInfo {
+   let link_info = LinkInfo {
+      sender_name,
+      link,
+    };
+    link_info
+}
+
+fn search_links_without_filter(messages: Vec<Message>) -> Vec<LinkInfo> {
     let mut links_info = Vec::new();
     for message in messages {
       if message.share.is_some() {
-        let link_info = LinkInfo {
-          sender_name: message.sender_name,
-          link: message.share.unwrap().link,
-        };
+        let link_info = create_link_info(message.sender_name, message.share.unwrap().link);
         links_info.push(link_info);
+      } else if message.content.contains("http://") || message.content.contains("https://") {
+        let v: Vec<&str> = message.content.split_whitespace().collect();
+        for word in v {
+          if word.contains("http://") || word.contains("https://") {
+            let link_info = create_link_info((message.sender_name).to_string(), word.to_string());
+            links_info.push(link_info);
+          }
+        }
       }
     }
     links_info
