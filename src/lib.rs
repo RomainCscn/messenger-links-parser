@@ -55,23 +55,6 @@ pub struct LinkInfo {
   link: String,
 }
 
-fn search_links_with_filter(messages: Vec<Message>, filter_site: String) -> Vec<LinkInfo> {
-    let mut links_info = Vec::new();
-    for message in messages {
-      if message.share.is_some() {
-        let link = message.share.unwrap().link;
-        if link.contains(&filter_site) {
-          let link_info = LinkInfo {
-            sender_name: message.sender_name,
-            link: link,
-          };
-          links_info.push(link_info);
-        }
-      }
-    }
-    links_info
-}
-
 fn create_link_info(sender_name: String, link: String) -> LinkInfo {
    let link_info = LinkInfo {
       sender_name,
@@ -80,11 +63,34 @@ fn create_link_info(sender_name: String, link: String) -> LinkInfo {
     link_info
 }
 
+fn search_links_with_filter(messages: Vec<Message>, filter_site: String) -> Vec<LinkInfo> {
+    let mut links_info = Vec::new();
+    for message in messages {
+      if message.share.is_some() {
+        let link = message.share.unwrap().link;
+        if link.contains(&filter_site) {
+          let link_info = create_link_info(message.sender_name, link);
+          links_info.push(link_info);
+        }
+      } else if message.content.contains("http://") || message.content.contains("https://") {
+        let v: Vec<&str> = message.content.split_whitespace().collect();
+        for word in v {
+          if (word.contains("http://") || word.contains("https://")) && word.contains(&filter_site) {
+            let link_info = create_link_info((message.sender_name).to_string(), word.to_string());
+            links_info.push(link_info);
+          }
+        }
+      }
+    }
+    links_info
+}
+
 fn search_links_without_filter(messages: Vec<Message>) -> Vec<LinkInfo> {
     let mut links_info = Vec::new();
     for message in messages {
       if message.share.is_some() {
-        let link_info = create_link_info(message.sender_name, message.share.unwrap().link);
+        let link = message.share.unwrap().link;
+        let link_info = create_link_info(message.sender_name, link);
         links_info.push(link_info);
       } else if message.content.contains("http://") || message.content.contains("https://") {
         let v: Vec<&str> = message.content.split_whitespace().collect();
