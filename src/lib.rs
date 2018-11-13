@@ -14,6 +14,9 @@ use std::io::LineWriter;
 use chrono::TimeZone;
 use chrono::Utc;
 
+pub mod server;
+
+#[derive(Deserialize, Debug)]
 pub struct Config {
     pub filename: String,
     pub site: Option<String>,
