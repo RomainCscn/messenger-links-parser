@@ -5,9 +5,11 @@ extern crate serde;
 extern crate serde_json;
 
 use std::env;
-use std::fs;
 use std::error::Error;
 use std::process;
+use std::fs::{self, File};
+use std::io::prelude::*;
+use std::io::LineWriter;
 
 pub struct Config {
     pub filename: String,
@@ -55,10 +57,15 @@ pub struct Share {
   link: String,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Serialize, Debug, PartialEq)]
 pub struct LinkInfo {
   sender_name: String,
   link: String,
+}
+
+#[derive(Serialize, Debug, )]
+pub struct JsonExport<'a> {
+  links: &'a Vec<LinkInfo>,
 }
 
 fn create_link_info(sender_name: String, link: String) -> LinkInfo {
@@ -69,9 +76,9 @@ fn create_link_info(sender_name: String, link: String) -> LinkInfo {
     link_info
 }
 
-fn search_links_with_filter(messages: Vec<Message>, filter_site: String) -> Vec<LinkInfo> {
+fn search_links_with_filter(messages: &[Message], filter_site: String) -> Vec<LinkInfo> {
     let mut links_info = Vec::new();
-    for message in messages {
+    for message in messages.iter().cloned() {
       if message.share.is_some() {
         let link = message.share.unwrap().link;
         if link.contains(&filter_site) {
@@ -91,9 +98,9 @@ fn search_links_with_filter(messages: Vec<Message>, filter_site: String) -> Vec<
     links_info
 }
 
-fn search_links_without_filter(messages: Vec<Message>) -> Vec<LinkInfo> {
+fn search_links_without_filter(messages: &[Message]) -> Vec<LinkInfo> {
     let mut links_info = Vec::new();
-    for message in messages {
+    for message in messages.iter().cloned() {
       if message.share.is_some() {
         let link = message.share.unwrap().link;
         let link_info = create_link_info(message.sender_name, link);
@@ -127,21 +134,41 @@ fn print_links_info(links_info: Vec<LinkInfo>) {
   }
 }
 
+fn write_json_file(content: String) -> std::io::Result<()> {
+  let file = File::create("test.json")?;
+  let mut file = LineWriter::new(file);
+  file.write_all(content.into_bytes().as_slice())?;
+
+  Ok(())
+}
+
+fn return_links_json(links_info: &Vec<LinkInfo>) -> Result<(), Box<dyn Error>> {
+    let json_to_export = JsonExport {
+      links: links_info,
+    };
+    
+    let json = serde_json::to_string_pretty(&json_to_export)?;
+    write_json_file(json)?;
+
+    Ok(())
+}
+
 fn parse_messages(json_value: JsonValue, site: Option<String>, sender: Option<String>) -> Result<(), Box<dyn Error>> {
     if site.is_some() {
       let filter_site = site.unwrap();
       if sender.is_some() {
         let messages = filter_sender(json_value.messages, sender.unwrap().as_str());
-        print_links_info(search_links_with_filter(messages, filter_site));
+        return_links_json(&search_links_with_filter(&messages, filter_site))?;
       } else {
-        print_links_info(search_links_with_filter(json_value.messages, filter_site));
+        return_links_json(&search_links_with_filter(&json_value.messages, filter_site))?;
       }
     } else {
       if sender.is_some() {
         let messages = filter_sender(json_value.messages, sender.unwrap().as_str());
-        print_links_info(search_links_without_filter(messages));
+        return_links_json(&search_links_without_filter(&messages))?;
       } else {
-        print_links_info(search_links_without_filter(json_value.messages));
+        return_links_json(&search_links_without_filter(&json_value.messages))?;
+        return_links_json(&search_links_without_filter(&json_value.messages))?;
       }
     }
     Ok(())
@@ -205,7 +232,7 @@ mod tests {
 
         assert_eq!(
             vec![link1, link2],
-            search_links_without_filter(vec![message1, message2, message3])
+            search_links_without_filter(&vec![message1, message2, message3])
         );
     }
 
@@ -239,7 +266,7 @@ mod tests {
 
         assert_eq!(
             vec![link1],
-            search_links_with_filter(vec![message1, message2, message3], String::from("reddit"))
+            search_links_with_filter(&vec![message1, message2, message3], String::from("reddit"))
         );
     }
 }
