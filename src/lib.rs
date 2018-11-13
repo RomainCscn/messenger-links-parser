@@ -12,6 +12,7 @@ use std::process;
 pub struct Config {
     pub filename: String,
     pub site: Option<String>,
+    pub sender: Option<String>,
 }
 
 impl Config {
@@ -28,7 +29,12 @@ impl Config {
           None => None,
         };
 
-        Ok(Config { filename, site })
+        let sender = match env::var("SENDER") {
+          Ok(value) => Some(value),
+          Err(_e) => None,
+        };
+
+        Ok(Config { filename, site, sender })
     }
 }
 
@@ -105,18 +111,38 @@ fn search_links_without_filter(messages: Vec<Message>) -> Vec<LinkInfo> {
     links_info
 }
 
+fn filter_sender(messages: Vec<Message>, sender: &str) -> Vec<Message> {
+  let mut sender_messages = Vec::new();
+  for message in messages {
+    if message.sender_name.contains(sender) {
+      sender_messages.push(message);
+    }
+  }
+  sender_messages
+}
+
 fn print_links_info(links_info: Vec<LinkInfo>) {
   for link_info in links_info {
     println!("{} - link sent by {}", link_info.link, link_info.sender_name);
   }
 }
 
-fn parse_messages(json_value: JsonValue, site: Option<String>) -> Result<(), Box<dyn Error>> {
+fn parse_messages(json_value: JsonValue, site: Option<String>, sender: Option<String>) -> Result<(), Box<dyn Error>> {
     if site.is_some() {
       let filter_site = site.unwrap();
-      print_links_info(search_links_with_filter(json_value.messages, filter_site));
+      if sender.is_some() {
+        let messages = filter_sender(json_value.messages, sender.unwrap().as_str());
+        print_links_info(search_links_with_filter(messages, filter_site));
+      } else {
+        print_links_info(search_links_with_filter(json_value.messages, filter_site));
+      }
     } else {
-      print_links_info(search_links_without_filter(json_value.messages));
+      if sender.is_some() {
+        let messages = filter_sender(json_value.messages, sender.unwrap().as_str());
+        print_links_info(search_links_without_filter(messages));
+      } else {
+        print_links_info(search_links_without_filter(json_value.messages));
+      }
     }
     Ok(())
 }
@@ -133,7 +159,7 @@ pub fn run(config: Config) -> Result<(), Box<dyn Error>> {
         process::exit(1);
     });
 
-    if let Err(e) = parse_messages(json_value, config.site) {
+    if let Err(e) = parse_messages(json_value, config.site, config.sender) {
         eprintln!("Application error: {}", e);
         process::exit(1);
     }
@@ -156,14 +182,17 @@ mod tests {
         let message1 = Message {
           sender_name: String::from("toto"),
           share: Some(share1),
+          content: String::from(""),
         };
         let message2 = Message {
           sender_name: String::from("toto"),
           share: None,
+          content: String::from(""),
         };
         let message3 = Message {
           sender_name: String::from("toto"),
           share: Some(share2),
+          content: String::from(""),
         };
         let link1 = LinkInfo {
           sender_name: String::from("toto"),
@@ -191,14 +220,17 @@ mod tests {
         let message1 = Message {
           sender_name: String::from("toto"),
           share: Some(share1),
+          content: String::from(""),
         };
         let message2 = Message {
           sender_name: String::from("toto"),
           share: None,
+          content: String::from(""),
         };
         let message3 = Message {
           sender_name: String::from("toto"),
           share: Some(share2),
+          content: String::from(""),
         };
         let link1 = LinkInfo {
           sender_name: String::from("toto"),
