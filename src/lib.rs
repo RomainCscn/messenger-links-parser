@@ -1,8 +1,8 @@
 #[macro_use]
 extern crate serde_derive;
-
 extern crate serde;
 extern crate serde_json;
+extern crate chrono;
 
 use std::env;
 use std::error::Error;
@@ -10,6 +10,9 @@ use std::process;
 use std::fs::{self, File};
 use std::io::prelude::*;
 use std::io::LineWriter;
+
+use chrono::TimeZone;
+use chrono::Utc;  
 
 pub struct Config {
     pub filename: String,
@@ -49,6 +52,7 @@ pub struct JsonValue {
 pub struct Message {
   sender_name: String,
   content: String,
+  timestamp_ms: i64,
   share: Option<Share>,
 }
 
@@ -60,6 +64,7 @@ pub struct Share {
 #[derive(Serialize, Debug, PartialEq)]
 pub struct LinkInfo {
   sender_name: String,
+  date: String,
   link: String,
 }
 
@@ -68,9 +73,12 @@ pub struct JsonExport<'a> {
   links: &'a Vec<LinkInfo>,
 }
 
-fn create_link_info(sender_name: String, link: String) -> LinkInfo {
+fn create_link_info(sender_name: String, timestamp: i64, link: String) -> LinkInfo {
+   let dt = Utc.timestamp_millis(timestamp);
+
    let link_info = LinkInfo {
       sender_name,
+      date: dt.format("%d-%m-%Y %H:%M:%S").to_string(),
       link,
     };
     link_info
@@ -82,14 +90,14 @@ fn search_links_with_filter(messages: &[Message], filter_site: String) -> Vec<Li
       if message.share.is_some() {
         let link = message.share.unwrap().link;
         if link.contains(&filter_site) {
-          let link_info = create_link_info(message.sender_name, link);
+          let link_info = create_link_info(message.sender_name, message.timestamp_ms, link);
           links_info.push(link_info);
         }
       } else if message.content.contains("http://") || message.content.contains("https://") {
         let v: Vec<&str> = message.content.split_whitespace().collect();
         for word in v {
           if (word.contains("http://") || word.contains("https://")) && word.contains(&filter_site) {
-            let link_info = create_link_info((message.sender_name).to_string(), word.to_string());
+            let link_info = create_link_info((message.sender_name).to_string(), message.timestamp_ms, word.to_string());
             links_info.push(link_info);
           }
         }
@@ -103,13 +111,13 @@ fn search_links_without_filter(messages: &[Message]) -> Vec<LinkInfo> {
     for message in messages.iter().cloned() {
       if message.share.is_some() {
         let link = message.share.unwrap().link;
-        let link_info = create_link_info(message.sender_name, link);
+        let link_info = create_link_info(message.sender_name, message.timestamp_ms,link);
         links_info.push(link_info);
       } else if message.content.contains("http://") || message.content.contains("https://") {
         let v: Vec<&str> = message.content.split_whitespace().collect();
         for word in v {
           if word.contains("http://") || word.contains("https://") {
-            let link_info = create_link_info((message.sender_name).to_string(), word.to_string());
+            let link_info = create_link_info((message.sender_name).to_string(), message.timestamp_ms, word.to_string());
             links_info.push(link_info);
           }
         }
@@ -210,16 +218,19 @@ mod tests {
           sender_name: String::from("toto"),
           share: Some(share1),
           content: String::from(""),
+          timestamp_ms: 122,
         };
         let message2 = Message {
           sender_name: String::from("toto"),
           share: None,
           content: String::from(""),
+          timestamp_ms: 122,
         };
         let message3 = Message {
           sender_name: String::from("toto"),
           share: Some(share2),
           content: String::from(""),
+          timestamp_ms: 122,
         };
         let link1 = LinkInfo {
           sender_name: String::from("toto"),
@@ -248,16 +259,19 @@ mod tests {
           sender_name: String::from("toto"),
           share: Some(share1),
           content: String::from(""),
+          timestamp_ms: 122,
         };
         let message2 = Message {
           sender_name: String::from("toto"),
           share: None,
           content: String::from(""),
+          timestamp_ms: 122,
         };
         let message3 = Message {
           sender_name: String::from("toto"),
           share: Some(share2),
           content: String::from(""),
+          timestamp_ms: 122,
         };
         let link1 = LinkInfo {
           sender_name: String::from("toto"),
