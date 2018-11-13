@@ -12,7 +12,7 @@ use std::io::prelude::*;
 use std::io::LineWriter;
 
 use chrono::TimeZone;
-use chrono::Utc;  
+use chrono::Utc;
 
 pub struct Config {
     pub filename: String,
@@ -21,7 +21,7 @@ pub struct Config {
 }
 
 impl Config {
-    pub fn new(mut args: env::Args) -> Result<Config, &'static str> {
+    pub fn new_cli(mut args: env::Args) -> Result<Config, &'static str> {
         args.next();
 
         let filename = match args.next() {
@@ -40,6 +40,10 @@ impl Config {
         };
 
         Ok(Config { filename, site, sender })
+    }
+
+    pub fn new(filename: String, site: Option<String>, sender: Option<String>) -> Result<Config, &'static str> {
+      Ok(Config { filename, site, sender })
     }
 }
 
@@ -136,12 +140,6 @@ fn filter_sender(messages: Vec<Message>, sender: &str) -> Vec<Message> {
   sender_messages
 }
 
-fn print_links_info(links_info: Vec<LinkInfo>) {
-  for link_info in links_info {
-    println!("{} - link sent by {}", link_info.link, link_info.sender_name);
-  }
-}
-
 fn write_json_file(content: String) -> std::io::Result<()> {
   let file = File::create("test.json")?;
   let mut file = LineWriter::new(file);
@@ -150,36 +148,35 @@ fn write_json_file(content: String) -> std::io::Result<()> {
   Ok(())
 }
 
-fn return_links_json(links_info: &Vec<LinkInfo>) -> Result<(), Box<dyn Error>> {
+fn return_links_json(links_info: &Vec<LinkInfo>) -> Result<(String), Box<dyn Error>> {
     let json_to_export = JsonExport {
       links: links_info,
     };
     
     let json = serde_json::to_string_pretty(&json_to_export)?;
-    write_json_file(json)?;
-
-    Ok(())
+    // write_json_file(json)?;
+    Ok(json)
 }
 
-fn parse_messages(json_value: JsonValue, site: Option<String>, sender: Option<String>) -> Result<(), Box<dyn Error>> {
+fn parse_messages(json_value: JsonValue, site: Option<String>, sender: Option<String>) -> Result<(String), Box<dyn Error>> {
+    let json;
     if site.is_some() {
       let filter_site = site.unwrap();
       if sender.is_some() {
         let messages = filter_sender(json_value.messages, sender.unwrap().as_str());
-        return_links_json(&search_links_with_filter(&messages, filter_site))?;
+        json = return_links_json(&search_links_with_filter(&messages, filter_site))?;
       } else {
-        return_links_json(&search_links_with_filter(&json_value.messages, filter_site))?;
+        json = return_links_json(&search_links_with_filter(&json_value.messages, filter_site))?;
       }
     } else {
       if sender.is_some() {
         let messages = filter_sender(json_value.messages, sender.unwrap().as_str());
-        return_links_json(&search_links_without_filter(&messages))?;
+        json = return_links_json(&search_links_without_filter(&messages))?;
       } else {
-        return_links_json(&search_links_without_filter(&json_value.messages))?;
-        return_links_json(&search_links_without_filter(&json_value.messages))?;
+        json = return_links_json(&search_links_without_filter(&json_value.messages))?;
       }
     }
-    Ok(())
+    Ok(json)
 }
 
 fn parse_file(filename: String) -> Result<JsonValue, Box<dyn Error>> {
@@ -188,18 +185,18 @@ fn parse_file(filename: String) -> Result<JsonValue, Box<dyn Error>> {
     Ok(value)
 }
  
-pub fn run(config: Config) -> Result<(), Box<dyn Error>> {
+pub fn run(config: Config) -> Result<(String), Box<dyn Error>> {
     let json_value = parse_file(config.filename).unwrap_or_else(|err| {
         eprintln!("Problem parsing file: {}", err);
         process::exit(1);
     });
 
-    if let Err(e) = parse_messages(json_value, config.site, config.sender) {
-        eprintln!("Application error: {}", e);
+    let json_links = parse_messages(json_value, config.site, config.sender).unwrap_or_else(|err| {
+        eprintln!("Application error: {}", err);
         process::exit(1);
-    }
+    });
 
-    Ok(())
+    Ok(json_links)
 }
 
 #[cfg(test)]
@@ -234,10 +231,12 @@ mod tests {
         };
         let link1 = LinkInfo {
           sender_name: String::from("toto"),
+          date: Utc.timestamp_millis(122).format("%d-%m-%Y %H:%M:%S").to_string(),
           link: String::from("https://www.youtube.com/watch?v=aJUQO9l7k5s"),
         };
         let link2 = LinkInfo {
           sender_name: String::from("toto"),
+          date: Utc.timestamp_millis(122).format("%d-%m-%Y %H:%M:%S").to_string(),
           link: String::from("https://www.youtube.com/watch?v=dazedazed"),
         };
 
@@ -275,6 +274,7 @@ mod tests {
         };
         let link1 = LinkInfo {
           sender_name: String::from("toto"),
+          date: Utc.timestamp_millis(122).format("%d-%m-%Y %H:%M:%S").to_string(),
           link: String::from("https://www.reddit.com/r/france"),
         };
 
