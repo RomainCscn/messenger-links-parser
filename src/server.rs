@@ -1,8 +1,11 @@
+extern crate actix;
 extern crate actix_web;
 extern crate listenfd;
+extern crate env_logger;
 
-use self::listenfd::ListenFd;
-use self::actix_web::{server, App, HttpRequest, Path, Result, http};
+use self::actix_web::{server, App, HttpRequest, Path, Result, http::{header, Method}, middleware, middleware::cors::Cors};
+
+use std::env;
 
 use super::{Config, run};
 
@@ -42,28 +45,38 @@ fn search_site_and_sender(info: Path<(String, String)>) -> Result<String> {
 }
 
 pub fn launch_server() {
-    let mut listenfd = ListenFd::from_env();
+    env::set_var("RUST_LOG", "actix_web=info");
+    env_logger::init();
 
-    let mut server = server::new(|| {
+    let sys = actix::System::new("Actix-web-CORS");
+
+    server::new(move || {
         App::new()
             .prefix("/search")
-            .resource("/all", |r| r.method(http::Method::GET).f(search_all))
-            .resource(
-                "/sender/{sender}",                    
-                |r| r.method(http::Method::GET).with(search_sender))
-            .resource(
-                "/site/{site}",                    
-                |r| r.method(http::Method::GET).with(search_site))
-            .resource(
-                "/site/{site}/sender/{sender}",                    
-                |r| r.method(http::Method::GET).with(search_site_and_sender))
-    });
+            .middleware(middleware::Logger::default())
+            .configure(|app| {
+                Cors::for_app(app)
+                    .allowed_origin("http://localhost:8080")
+                    .allowed_methods(vec!["GET"])
+                    .allowed_headers(vec![header::AUTHORIZATION, header::ACCEPT])
+                    .allowed_header(header::CONTENT_TYPE)
+                    .max_age(3600)
+                    .resource("/all", |r| r.method(Method::GET).f(search_all))
+                    .resource(
+                        "/sender/{sender}",                    
+                        |r| r.method(Method::GET).with(search_sender))
+                    .resource(
+                        "/site/{site}",                    
+                        |r| r.method(Method::GET).with(search_site))
+                    .resource(
+                        "/site/{site}/sender/{sender}",                    
+                        |r| r.method(Method::GET).with(search_site_and_sender))
+                    .register()
+            })
+    }).bind("127.0.0.1:3000")
+        .unwrap()
+        .shutdown_timeout(2)
+        .start();
 
-    server = if let Some(l) = listenfd.take_tcp_listener(0).unwrap() {
-        server.listen(l)
-    } else {
-        server.bind("127.0.0.1:3000").unwrap()
-    };
-
-    server.run();
+    let _ = sys.run();
 }
