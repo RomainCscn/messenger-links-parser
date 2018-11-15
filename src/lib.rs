@@ -58,14 +58,14 @@ pub struct JsonValue {
 #[derive(Deserialize, Debug, Clone, PartialEq)]
 pub struct Message {
   sender_name: String,
-  content: String,
+  content: Option<String>,
   timestamp_ms: i64,
   share: Option<Share>,
 }
 
 #[derive(Deserialize, Debug, Clone, PartialEq)]
 pub struct Share {
-  link: String,
+  link: Option<String>,
 }
 
 #[derive(Serialize, Debug, PartialEq)]
@@ -95,13 +95,17 @@ fn search_links_with_filter(messages: &[Message], filter_site: String) -> Vec<Li
     let mut links_info = Vec::new();
     for message in messages.iter().cloned() {
       if message.share.is_some() {
-        let link = message.share.unwrap().link;
-        if link.contains(&filter_site) {
-          let link_info = create_link_info(message.sender_name, message.timestamp_ms, link);
-          links_info.push(link_info);
+        let share = message.share.unwrap();
+        if share.link.is_some() {
+          let link = share.link.unwrap();
+          if link.contains(&filter_site) {
+            let link_info = create_link_info(message.sender_name, message.timestamp_ms, link);
+            links_info.push(link_info);
+          }
         }
-      } else if message.content.contains("http://") || message.content.contains("https://") {
-        let v: Vec<&str> = message.content.split_whitespace().collect();
+      } else if message.content.is_some() && (message.clone().content.unwrap().contains("http://") || message.clone().content.unwrap().contains("https://")) {
+        let content = message.content.unwrap();
+        let v: Vec<&str> = content.split_whitespace().collect();
         for word in v {
           if (word.contains("http://") || word.contains("https://")) && word.contains(&filter_site) {
             let link_info = create_link_info((message.sender_name).to_string(), message.timestamp_ms, word.to_string());
@@ -117,11 +121,15 @@ fn search_links_without_filter(messages: &[Message]) -> Vec<LinkInfo> {
     let mut links_info = Vec::new();
     for message in messages.iter().cloned() {
       if message.share.is_some() {
-        let link = message.share.unwrap().link;
-        let link_info = create_link_info(message.sender_name, message.timestamp_ms,link);
-        links_info.push(link_info);
-      } else if message.content.contains("http://") || message.content.contains("https://") {
-        let v: Vec<&str> = message.content.split_whitespace().collect();
+        let share = message.share.unwrap();
+        if share.link.is_some() {
+          let link = share.link.unwrap();
+          let link_info = create_link_info(message.sender_name, message.timestamp_ms, link);
+          links_info.push(link_info);
+        }
+      } else if message.content.is_some() && (message.clone().content.unwrap().contains("http://") || message.clone().content.unwrap().contains("https://")) {
+        let content = message.content.unwrap();
+        let v: Vec<&str> = content.split_whitespace().collect();
         for word in v {
           if word.contains("http://") || word.contains("https://") {
             let link_info = create_link_info((message.sender_name).to_string(), message.timestamp_ms, word.to_string());
@@ -210,27 +218,27 @@ mod tests {
     #[test]
     fn search_without_filter() {
         let share1 = Share {
-          link: String::from("https://www.youtube.com/watch?v=aJUQO9l7k5s"),
+          link: Some(String::from("https://www.youtube.com/watch?v=aJUQO9l7k5s")),
         };
         let share2 = Share {
-          link: String::from("https://www.youtube.com/watch?v=dazedazed"),
+          link: Some(String::from("https://www.youtube.com/watch?v=dazedazed")),
         };
         let message1 = Message {
           sender_name: String::from("toto"),
           share: Some(share1),
-          content: String::from(""),
+          content: Some(String::from("")),
           timestamp_ms: 122,
         };
         let message2 = Message {
           sender_name: String::from("toto"),
           share: None,
-          content: String::from(""),
+          content: Some(String::from("")),
           timestamp_ms: 122,
         };
         let message3 = Message {
           sender_name: String::from("toto"),
           share: Some(share2),
-          content: String::from(""),
+          content: Some(String::from("")),
           timestamp_ms: 122,
         };
         let link1 = LinkInfo {
@@ -253,27 +261,27 @@ mod tests {
     #[test]
     fn search_with_filter() {
         let share1 = Share {
-          link: String::from("https://www.youtube.com/watch?v=aJUQO9l7k5s"),
+          link: Some(String::from("https://www.youtube.com/watch?v=aJUQO9l7k5s")),
         };
         let share2 = Share {
-          link: String::from("https://www.reddit.com/r/france"),
+          link: Some(String::from("https://www.reddit.com/r/france")),
         };
         let message1 = Message {
           sender_name: String::from("toto"),
           share: Some(share1),
-          content: String::from(""),
+          content: Some(String::from("")),
           timestamp_ms: 122,
         };
         let message2 = Message {
           sender_name: String::from("toto"),
           share: None,
-          content: String::from(""),
+          content: Some(String::from("")),
           timestamp_ms: 122,
         };
         let message3 = Message {
           sender_name: String::from("toto"),
           share: Some(share2),
-          content: String::from(""),
+          content: Some(String::from("")),
           timestamp_ms: 122,
         };
         let link1 = LinkInfo {
@@ -293,19 +301,19 @@ mod tests {
       let message1 = Message {
           sender_name: String::from("toto"),
           share: None,
-          content: String::from(""),
+          content: Some(String::from("")),
           timestamp_ms: 122,
         };
         let message2 = Message {
           sender_name: String::from("foo"),
           share: None,
-          content: String::from(""),
+          content: Some(String::from("")),
           timestamp_ms: 122,
         };
         let message3 = Message {
           sender_name: String::from("toto"),
           share: None,
-          content: String::from(""),
+          content: Some(String::from("")),
           timestamp_ms: 122,
         };
 
