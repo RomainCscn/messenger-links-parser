@@ -55,7 +55,7 @@ pub struct JsonValue {
     messages: Vec<Message>,
 }
 
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Deserialize, Debug, Clone, PartialEq)]
 pub struct Message {
   sender_name: String,
   content: String,
@@ -63,7 +63,7 @@ pub struct Message {
   share: Option<Share>,
 }
 
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Deserialize, Debug, Clone, PartialEq)]
 pub struct Share {
   link: String,
 }
@@ -143,6 +143,7 @@ fn filter_sender(messages: Vec<Message>, sender: &str) -> Vec<Message> {
   sender_messages
 }
 
+#[allow(dead_code)]
 fn write_json_file(content: String) -> std::io::Result<()> {
   let file = File::create("test.json")?;
   let mut file = LineWriter::new(file);
@@ -285,5 +286,45 @@ mod tests {
             vec![link1],
             search_links_with_filter(&vec![message1, message2, message3], String::from("reddit"))
         );
+    }
+
+    #[test]
+    fn filter_sender_test() {
+      let message1 = Message {
+          sender_name: String::from("toto"),
+          share: None,
+          content: String::from(""),
+          timestamp_ms: 122,
+        };
+        let message2 = Message {
+          sender_name: String::from("foo"),
+          share: None,
+          content: String::from(""),
+          timestamp_ms: 122,
+        };
+        let message3 = Message {
+          sender_name: String::from("toto"),
+          share: None,
+          content: String::from(""),
+          timestamp_ms: 122,
+        };
+
+        assert_eq!(
+          vec![message1.clone(), message3.clone()],
+          filter_sender(vec![message1, message2, message3], "toto")
+        );
+    }
+
+    #[test]
+    fn create_link_info_test() {
+      let link = LinkInfo {
+          sender_name: String::from("toto"),
+          date: Utc.timestamp_millis(122).format("%d-%m-%Y %H:%M:%S").to_string(),
+          link: String::from("https://www.youtube.com/watch?v=aJUQO9l7k5s"),
+      };
+
+      assert_eq!(
+        link, 
+        create_link_info(String::from("toto"), 122, String::from("https://www.youtube.com/watch?v=aJUQO9l7k5s")));
     }
 }

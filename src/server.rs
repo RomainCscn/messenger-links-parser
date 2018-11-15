@@ -2,7 +2,7 @@ extern crate actix_web;
 extern crate listenfd;
 
 use self::listenfd::ListenFd;
-use self::actix_web::{server, App, Json, HttpRequest, Path, Result, http};
+use self::actix_web::{server, App, HttpRequest, Path, Result, http};
 
 use super::{Config, run};
 
@@ -13,7 +13,7 @@ struct Info {
     sender: Option<String>
 }
 
-fn search_all(req: &HttpRequest) -> Result<String> {
+fn search_all(_req: &HttpRequest) -> Result<String> {
     let config = Config::new(String::from("message.json"), None, None).unwrap();
     let result = run(config).unwrap();
     Ok(format!("{}", result))

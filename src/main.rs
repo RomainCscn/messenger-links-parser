@@ -10,6 +10,7 @@ fn main() {
     messenger_parser::server::launch_server();
 }
 
+#[allow(dead_code)]
 fn run_using_cli() {
     let config = Config::new_cli(env::args()).unwrap_or_else(|err| {
         eprintln!("Problem parsing arguments: {}", err);
