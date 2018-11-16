@@ -184,7 +184,7 @@ fn filter_date(messages: Vec<Message>, date_filter: DateFilter) -> Vec<Message> 
             date_messages.push(message);
           }
         } else if has_day {
-          if date.day() == date_filter.day.unwrap() {
+          if date.year() == date_filter.year.unwrap() && date.day() == date_filter.day.unwrap() {
             date_messages.push(message);
           }
         } else if date.year() == date_filter.year.unwrap() {
