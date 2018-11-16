@@ -17,7 +17,7 @@ fn run_using_cli() {
         process::exit(1);
     });
 
-    let result = messenger_parser::run(config).unwrap_or_else(|err| {
+    let result = messenger_parser::run(config, None).unwrap_or_else(|err| {
         eprintln!("Application error: {}", err);
         process::exit(1);
     });

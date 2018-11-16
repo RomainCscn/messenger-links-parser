@@ -13,6 +13,7 @@ use std::io::LineWriter;
 
 use chrono::TimeZone;
 use chrono::Utc;
+use chrono::prelude::*;
 
 pub mod server;
 
@@ -48,6 +49,13 @@ impl Config {
     pub fn new(filename: String, site: Option<String>, sender: Option<String>) -> Result<Config, &'static str> {
       Ok(Config { filename, site, sender })
     }
+}
+
+#[derive(Deserialize, Debug)]
+pub struct DateFilter {
+  pub year: Option<i32>,
+  pub month: Option<u32>,
+  pub day: Option<u32>
 }
 
 #[derive(Deserialize, Debug)]
@@ -151,6 +159,35 @@ fn filter_sender(messages: Vec<Message>, sender: &str) -> Vec<Message> {
   sender_messages
 }
 
+fn filter_date(messages: Vec<Message>, date_filter: DateFilter) -> Vec<Message> {
+    let has_year = date_filter.year.is_some();
+    let has_month = date_filter.month.is_some();
+    let has_day = date_filter.day.is_some();
+    
+    let mut date_messages = Vec::new();
+    for message in messages {
+      let date = Utc.timestamp_millis(message.timestamp_ms);
+      if has_year {
+        if has_month && has_day {
+          if date.year() == date_filter.year.unwrap() && date.month() == date_filter.month.unwrap() && date.day() == date_filter.day.unwrap() {
+            date_messages.push(message);
+          }
+        } else if has_month {
+          if date.year() == date_filter.year.unwrap() && date.month() == date_filter.month.unwrap() {
+            date_messages.push(message);
+          }
+        } else if has_day {
+          if date.day() == date_filter.day.unwrap() {
+            date_messages.push(message);
+          }
+        } else if date.year() == date_filter.year.unwrap() {
+            date_messages.push(message);
+          }
+        }
+      }
+    date_messages
+}
+
 #[allow(dead_code)]
 fn write_json_file(content: String) -> std::io::Result<()> {
   let file = File::create("test.json")?;
@@ -170,23 +207,33 @@ fn return_links_json(links_info: &Vec<LinkInfo>) -> Result<(String), Box<dyn Err
     Ok(json)
 }
 
-fn parse_messages(json_value: JsonValue, site: Option<String>, sender: Option<String>) -> Result<(String), Box<dyn Error>> {
+fn parse_messages(json_value: JsonValue, config: Config, date_filter: Option<DateFilter>) -> Result<(String), Box<dyn Error>> {
     let json;
-    if site.is_some() {
-      let filter_site = site.unwrap();
-      if sender.is_some() {
-        let messages = filter_sender(json_value.messages, sender.unwrap().as_str());
+    let has_date_filter = date_filter.is_some();
+    if config.site.is_some() {
+      let filter_site = config.site.unwrap();
+      if config.sender.is_some() && has_date_filter {
+        let messages = filter_sender(json_value.messages, config.sender.unwrap().as_str());
+        let messages = filter_date(messages, date_filter.unwrap());
+        json = return_links_json(&search_links_with_filter(&messages, filter_site))?;
+      } else if has_date_filter {
+        let messages = filter_date(json_value.messages, date_filter.unwrap());
         json = return_links_json(&search_links_with_filter(&messages, filter_site))?;
       } else {
-        json = return_links_json(&search_links_with_filter(&json_value.messages, filter_site))?;
+          json = return_links_json(&search_links_with_filter(&json_value.messages, filter_site))?;
       }
+    } else if config.sender.is_some() && has_date_filter {
+      let messages = filter_sender(json_value.messages, config.sender.unwrap().as_str());
+      let messages = filter_date(messages, date_filter.unwrap());
+      json = return_links_json(&search_links_without_filter(&messages))?;
+    } else if config.sender.is_some() {
+      let messages = filter_sender(json_value.messages, config.sender.unwrap().as_str());
+      json = return_links_json(&search_links_without_filter(&messages))?; 
+    } else if has_date_filter {
+      let messages = filter_date(json_value.messages, date_filter.unwrap());
+      json = return_links_json(&search_links_without_filter(&messages))?;
     } else {
-      if sender.is_some() {
-        let messages = filter_sender(json_value.messages, sender.unwrap().as_str());
-        json = return_links_json(&search_links_without_filter(&messages))?;
-      } else {
-        json = return_links_json(&search_links_without_filter(&json_value.messages))?;
-      }
+      json = return_links_json(&search_links_without_filter(&json_value.messages))?;
     }
     Ok(json)
 }
@@ -197,13 +244,14 @@ fn parse_file(filename: String) -> Result<JsonValue, Box<dyn Error>> {
     Ok(value)
 }
  
-pub fn run(config: Config) -> Result<(String), Box<dyn Error>> {
-    let json_value = parse_file(config.filename).unwrap_or_else(|err| {
+pub fn run(config: Config, date_filter: Option<DateFilter>) -> Result<(String), Box<dyn Error>> {
+    let filename = config.filename.to_string();
+    let json_value = parse_file(filename).unwrap_or_else(|err| {
         eprintln!("Problem parsing file: {}", err);
         process::exit(1);
     });
 
-    let json_links = parse_messages(json_value, config.site, config.sender).unwrap_or_else(|err| {
+    let json_links = parse_messages(json_value, config, date_filter).unwrap_or_else(|err| {
         eprintln!("Application error: {}", err);
         process::exit(1);
     });
@@ -320,6 +368,38 @@ mod tests {
         assert_eq!(
           vec![message1.clone(), message3.clone()],
           filter_sender(vec![message1, message2, message3], "toto")
+        );
+    }
+
+    #[test]
+    fn filter_date_test() {
+      let message1 = Message {
+          sender_name: String::from("toto"),
+          share: None,
+          content: Some(String::from("")),
+          timestamp_ms: 1518370388967,
+        };
+        let message2 = Message {
+          sender_name: String::from("foo"),
+          share: None,
+          content: Some(String::from("")),
+          timestamp_ms: 1433346000259,
+        };
+        let message3 = Message {
+          sender_name: String::from("toto"),
+          share: None,
+          content: Some(String::from("")),
+          timestamp_ms: 1518370850974,
+        };
+        let date_filter = DateFilter {
+          year: 2018,
+          month: Some(2),
+          day: Some(11)
+        };
+
+        assert_eq!(
+          vec![message1.clone(), message3.clone()],
+          filter_date(vec![message1, message2, message3], date_filter)
         );
     }
 

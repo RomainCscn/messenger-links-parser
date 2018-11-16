@@ -3,45 +3,44 @@ extern crate actix_web;
 extern crate listenfd;
 extern crate env_logger;
 
-use self::actix_web::{server, App, HttpRequest, Path, Result, http::{header, Method}, middleware, middleware::cors::Cors};
+use self::actix_web::{server, App, Query, Path, Result, http::{header, Method}, middleware, middleware::cors::Cors};
 
 use std::env;
 
-use super::{Config, run};
+use super::{Config, run, DateFilter};
 
-#[derive(Deserialize, Debug)]
-struct Info {
-    filename: String,
-    site: Option<String>,
-    sender: Option<String>
+fn run_config(config: Config, query: Query<DateFilter>) -> String {
+    let result;
+    if query.year.is_some() || query.month.is_some() || query.day.is_some() {
+        result = run(config, Some(query.into_inner())).unwrap();
+    } else {
+        result = run(config, None).unwrap();
+    }
+    result
 }
 
-fn search_all(_req: &HttpRequest) -> Result<String> {
+fn search_all(query: Query<DateFilter>) -> Result<String> {
     let config = Config::new(String::from("message.json"), None, None).unwrap();
-    let result = run(config).unwrap();
-    Ok(format!("{}", result))
+    Ok(format!("{}", run_config(config, query)))
 }
 
 /// extract path info from "/sender/{sender}" url
 /// {sender} - deserializes to a String
-fn search_site(info: Path<(String)>) -> Result<String> {
-    let config = Config::new(String::from("message.json"), Some(info.to_string()), None).unwrap();
-    let result = run(config).unwrap();
-    Ok(format!("{}", result))
+fn search_site((path, query): (Path<(String)>, Query<DateFilter>)) -> Result<String> {
+    let config = Config::new(String::from("message.json"), Some(path.to_string()), None).unwrap();
+    Ok(format!("{}", run_config(config, query)))
 }
 
 // extract path info from "/sender/{sender}" url
 // {sender} - deserializes to a String
-fn search_sender(info: Path<(String)>) -> Result<String> {
-    let config = Config::new(String::from("message.json"), None, Some(info.to_string())).unwrap();
-    let result = run(config).unwrap();
-    Ok(format!("{}", result))
+fn search_sender((path, query): (Path<(String)>, Query<DateFilter>)) -> Result<String> {
+    let config = Config::new(String::from("message.json"), None, Some(path.to_string())).unwrap();
+    Ok(format!("{}", run_config(config, query)))
 }
 
-fn search_site_and_sender(info: Path<(String, String)>) -> Result<String> {
-    let config = Config::new(String::from("message.json"), Some(info.0.to_string()), Some(info.1.to_string())).unwrap();
-    let result = run(config).unwrap();
-    Ok(format!("{}", result))
+fn search_site_and_sender((path, query): (Path<(String, String)>, Query<DateFilter>)) -> Result<String> {
+    let config = Config::new(String::from("message.json"), Some(path.0.to_string()), Some(path.1.to_string())).unwrap();
+    Ok(format!("{}", run_config(config, query)))
 }
 
 pub fn launch_server() {
@@ -61,7 +60,9 @@ pub fn launch_server() {
                     .allowed_headers(vec![header::AUTHORIZATION, header::ACCEPT])
                     .allowed_header(header::CONTENT_TYPE)
                     .max_age(3600)
-                    .resource("/all", |r| r.method(Method::GET).f(search_all))
+                    .resource(
+                        "/all", 
+                        |r| r.method(Method::GET).with(search_all))
                     .resource(
                         "/sender/{sender}",                    
                         |r| r.method(Method::GET).with(search_sender))
