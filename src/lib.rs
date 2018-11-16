@@ -99,54 +99,61 @@ fn create_link_info(sender_name: String, timestamp: i64, link: String) -> LinkIn
     link_info
 }
 
-fn search_links_with_filter(messages: &[Message], filter_site: String) -> Vec<LinkInfo> {
-    let mut links_info = Vec::new();
-    for message in messages.iter().cloned() {
-      if message.share.is_some() {
-        let share = message.share.unwrap();
-        if share.link.is_some() {
-          let link = share.link.unwrap();
-          if link.contains(&filter_site) {
-            let link_info = create_link_info(message.sender_name, message.timestamp_ms, link);
-            links_info.push(link_info);
-          }
+fn search_in_share(message: Message) -> Option<LinkInfo> {
+  let share = message.share.unwrap();
+  if share.link.is_some() {
+    let link_info = create_link_info(message.sender_name, message.timestamp_ms, share.link.unwrap());
+    return Some(link_info);
+  }
+  return None;
+}
+
+fn search_in_content(message: Message) -> Option<LinkInfo> {
+  let content = message.content.unwrap();
+  let v: Vec<&str> = content.split_whitespace().collect();
+  for word in v {
+    if word.contains("http://") || word.contains("https://") {
+      let link_info = create_link_info((message.sender_name).to_string(), message.timestamp_ms, word.to_string());
+      return Some(link_info)
+    }
+  }
+  return None;
+}
+
+fn search_links_with_site_filter(messages: &[Message], filter_site: String) -> Vec<LinkInfo> {
+  let mut links_info = Vec::new();
+  for message in messages.iter().cloned() {
+    if message.share.is_some() {
+      if let Some(link_info) = search_in_share(message) {
+        if link_info.link.contains(&filter_site) {
+          links_info.push(link_info);
         }
-      } else if message.content.is_some() && (message.clone().content.unwrap().contains("http://") || message.clone().content.unwrap().contains("https://")) {
-        let content = message.content.unwrap();
-        let v: Vec<&str> = content.split_whitespace().collect();
-        for word in v {
-          if (word.contains("http://") || word.contains("https://")) && word.contains(&filter_site) {
-            let link_info = create_link_info((message.sender_name).to_string(), message.timestamp_ms, word.to_string());
+      }
+    } else if message.content.is_some() && (message.clone().content.unwrap().contains("http://") || message.clone().content.unwrap().contains("https://")) {
+        if let Some(link_info) = search_in_content(message) {
+          if link_info.link.contains(&filter_site) {
             links_info.push(link_info);
           }
         }
       }
     }
-    links_info
+  links_info
 }
 
 fn search_links_without_filter(messages: &[Message]) -> Vec<LinkInfo> {
-    let mut links_info = Vec::new();
-    for message in messages.iter().cloned() {
-      if message.share.is_some() {
-        let share = message.share.unwrap();
-        if share.link.is_some() {
-          let link = share.link.unwrap();
-          let link_info = create_link_info(message.sender_name, message.timestamp_ms, link);
+  let mut links_info = Vec::new();
+  for message in messages.iter().cloned() {
+    if message.share.is_some() {
+      if let Some(link_info) = search_in_share(message) {
+        links_info.push(link_info);
+      }
+    } else if message.content.is_some() && (message.clone().content.unwrap().contains("http://") || message.clone().content.unwrap().contains("https://")) {
+        if let Some(link_info) = search_in_content(message) {
           links_info.push(link_info);
-        }
-      } else if message.content.is_some() && (message.clone().content.unwrap().contains("http://") || message.clone().content.unwrap().contains("https://")) {
-        let content = message.content.unwrap();
-        let v: Vec<&str> = content.split_whitespace().collect();
-        for word in v {
-          if word.contains("http://") || word.contains("https://") {
-            let link_info = create_link_info((message.sender_name).to_string(), message.timestamp_ms, word.to_string());
-            links_info.push(link_info);
-          }
         }
       }
     }
-    links_info
+  links_info
 }
 
 fn filter_sender(messages: Vec<Message>, sender: &str) -> Vec<Message> {
@@ -215,12 +222,12 @@ fn parse_messages(json_value: JsonValue, config: Config, date_filter: Option<Dat
       if config.sender.is_some() && has_date_filter {
         let messages = filter_sender(json_value.messages, config.sender.unwrap().as_str());
         let messages = filter_date(messages, date_filter.unwrap());
-        json = return_links_json(&search_links_with_filter(&messages, filter_site))?;
+        json = return_links_json(&search_links_with_site_filter(&messages, filter_site))?;
       } else if has_date_filter {
         let messages = filter_date(json_value.messages, date_filter.unwrap());
-        json = return_links_json(&search_links_with_filter(&messages, filter_site))?;
+        json = return_links_json(&search_links_with_site_filter(&messages, filter_site))?;
       } else {
-          json = return_links_json(&search_links_with_filter(&json_value.messages, filter_site))?;
+          json = return_links_json(&search_links_with_site_filter(&json_value.messages, filter_site))?;
       }
     } else if config.sender.is_some() && has_date_filter {
       let messages = filter_sender(json_value.messages, config.sender.unwrap().as_str());
@@ -340,7 +347,7 @@ mod tests {
 
         assert_eq!(
             vec![link1],
-            search_links_with_filter(&vec![message1, message2, message3], String::from("reddit"))
+            search_links_with_site_filter(&vec![message1, message2, message3], String::from("reddit"))
         );
     }
 
@@ -392,7 +399,7 @@ mod tests {
           timestamp_ms: 1518370850974,
         };
         let date_filter = DateFilter {
-          year: 2018,
+          year: Some(2018),
           month: Some(2),
           day: Some(11)
         };
