@@ -55,7 +55,7 @@ pub fn launch_server() {
             .middleware(middleware::Logger::default())
             .configure(|app| {
                 Cors::for_app(app)
-                    .allowed_origin("http://localhost:8080")
+                    .send_wildcard()
                     .allowed_methods(vec!["GET"])
                     .allowed_headers(vec![header::AUTHORIZATION, header::ACCEPT])
                     .allowed_header(header::CONTENT_TYPE)
