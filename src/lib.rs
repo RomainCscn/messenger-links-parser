@@ -27,6 +27,7 @@ pub struct Config {
 impl Config {
     pub fn new_cli(mut args: env::Args) -> Result<Config, &'static str> {
         args.next();
+        args.next();
 
         let filename = match args.next() {
             Some(args) => args,
