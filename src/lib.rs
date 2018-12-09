@@ -217,31 +217,25 @@ fn return_links_json(links_info: &Vec<LinkInfo>) -> Result<(String), Box<dyn Err
 
 fn parse_messages(json_value: JsonValue, config: Config, date_filter: Option<DateFilter>) -> Result<(String), Box<dyn Error>> {
     let json;
+    let mut messages = json_value.messages;
     let has_date_filter = date_filter.is_some();
     if config.site.is_some() {
       let filter_site = config.site.unwrap();
-      if config.sender.is_some() && has_date_filter {
-        let messages = filter_sender(json_value.messages, config.sender.unwrap().as_str());
-        let messages = filter_date(messages, date_filter.unwrap());
-        json = return_links_json(&search_links_with_site_filter(&messages, filter_site))?;
-      } else if has_date_filter {
-        let messages = filter_date(json_value.messages, date_filter.unwrap());
-        json = return_links_json(&search_links_with_site_filter(&messages, filter_site))?;
-      } else {
-          json = return_links_json(&search_links_with_site_filter(&json_value.messages, filter_site))?;
+      if config.sender.is_some() {
+        messages = filter_sender(messages, config.sender.unwrap().as_str());
       }
-    } else if config.sender.is_some() && has_date_filter {
-      let messages = filter_sender(json_value.messages, config.sender.unwrap().as_str());
-      let messages = filter_date(messages, date_filter.unwrap());
-      json = return_links_json(&search_links_without_filter(&messages))?;
-    } else if config.sender.is_some() {
-      let messages = filter_sender(json_value.messages, config.sender.unwrap().as_str());
-      json = return_links_json(&search_links_without_filter(&messages))?; 
-    } else if has_date_filter {
-      let messages = filter_date(json_value.messages, date_filter.unwrap());
-      json = return_links_json(&search_links_without_filter(&messages))?;
+      if has_date_filter {
+        messages = filter_date(messages, date_filter.unwrap());
+      }
+      json = return_links_json(&search_links_with_site_filter(&messages, filter_site))?;
     } else {
-      json = return_links_json(&search_links_without_filter(&json_value.messages))?;
+      if config.sender.is_some() {
+        messages = filter_sender(messages, config.sender.unwrap().as_str());
+      }
+      if has_date_filter {
+        messages = filter_date(messages, date_filter.unwrap());
+      }
+      json = return_links_json(&search_links_without_filter(&messages))?;
     }
     Ok(json)
 }
